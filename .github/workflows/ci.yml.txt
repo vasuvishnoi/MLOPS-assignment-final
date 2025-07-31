@@ -1,0 +1,76 @@
+﻿name: MLOps Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test_suite:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v
+
+  train_and_quantize:
+    needs: test_suite
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Train model
+      run: |
+        python src/train.py
+    
+    - name: Quantize model
+      run: |
+        python src/quantize.py
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: models
+        path: models/
+
+  build_and_test_container:
+    needs: train_and_quantize
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: models
+        path: models/
+    
+    - name: Build Docker image
+      run: docker build -t mlops-assignment .
+    
+    - name: Run Docker container
+      run: |
+        docker run --rm mlops-assignment
